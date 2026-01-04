@@ -6,7 +6,6 @@ from scipy.stats import chi2_contingency
 import warnings
 warnings.filterwarnings('ignore')
 
-
 plt.style.use('seaborn-v0_8-darkgrid')
 sns.set_palette("husl")
 
@@ -25,11 +24,11 @@ df = df[cols]
 df['Date'] = pd.to_datetime(df['Date'])
 df = df.sort_values('Date').reset_index(drop=True)
 
-
+# derived features
 df['Year'] = df['Date'].dt.year
 df['Length (min)'] = df['Length (Sec)'] / 60
 
-
+#define “consumption eras”
 def assign_era(date):
     year = date.year
     if year < 2007:
@@ -74,14 +73,14 @@ era_colors = {
     'Post-Short-Form': '#95E1D3'
 }
 
-#creating visuals
+print("Creating visualizations for 4 research questions...")
 print(f"Dataset: {len(df)} songs from {df['Date'].min().date()} to {df['Date'].max().date()}\n")
 
-# 1. song length
+# song length
 print("song length analysis")
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle('RQ1: Song Length Across Consumption Eras', fontsize=14, fontweight='bold')
+fig.suptitle('Song Length Across Consumption Eras', fontsize=14, fontweight='bold')
 
 # Box plot
 bp = axes[0].boxplot([pre_digital['Length (min)'].dropna(),
@@ -103,27 +102,27 @@ axes[0].text(0.02, 0.98, f'χ² test: p={p_val:.4f}',
             transform=axes[0].transAxes, fontsize=9, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-# Time series
-yearly_length = df.groupby('Year')['Length (min)'].mean()
-axes[1].plot(yearly_length.index, yearly_length.values, linewidth=2, color='#2C3E50', marker='o', markersize=3)
-axes[1].axvline(2007, color='red', linestyle='--', linewidth=2, alpha=0.7, label='Era boundaries')
-axes[1].axvline(2020, color='red', linestyle='--', linewidth=2, alpha=0.7)
-axes[1].set_xlabel('Year', fontsize=11)
-axes[1].set_ylabel('Average Song Length (minutes)', fontsize=11)
-axes[1].set_title('Song Length Over Time', fontsize=12)
+# Histogram showing distributions
+bins = np.linspace(df['Length (min)'].min(), df['Length (min)'].max(), 30)
+for era, color in era_colors.items():
+    era_data = df[df['Era'] == era]['Length (min)'].dropna()
+    axes[1].hist(era_data, bins=bins, alpha=0.5, label=era, color=color, edgecolor='black')
+axes[1].set_xlabel('Song Length (minutes)', fontsize=11)
+axes[1].set_ylabel('Frequency', fontsize=11)
+axes[1].set_title('Song Length Distribution by Era', fontsize=12)
 axes[1].legend()
 axes[1].grid(True, alpha=0.3)
 
 plt.tight_layout()
 plt.savefig('song_length.png', dpi=300, bbox_inches='tight')
-print("saved song length plot")
+print("saved song_length.png")
 plt.close()
 
-# 2. "artist structure"
+# artist structure
 print("artist structure analysis")
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle('RQ2: Artist Structure Across Eras', fontsize=14, fontweight='bold')
+fig.suptitle('Artist Structure Across Eras', fontsize=14, fontweight='bold')
 
 # Stacked bar chart
 structure_by_era = df.groupby('Era')[['Solo_Artist', 'Duo', 'Group']].mean() * 100
@@ -153,30 +152,32 @@ axes[0].text(0.02, 0.98, f'χ² test: p={p_val:.4f}',
             transform=axes[0].transAxes, fontsize=9, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
-# Time series
-yearly_solo = df.groupby('Year')['Solo_Artist'].mean() * 100
-yearly_group = df.groupby('Year')['Group'].mean() * 100
-axes[1].plot(yearly_solo.index, yearly_solo.values, linewidth=2.5, color='#E74C3C', marker='o', markersize=3, label='Solo')
-axes[1].plot(yearly_group.index, yearly_group.values, linewidth=2.5, color='#27AE60', marker='o', markersize=3, label='Group')
-axes[1].axvline(2007, color='red', linestyle='--', linewidth=2, alpha=0.7)
-axes[1].axvline(2020, color='red', linestyle='--', linewidth=2, alpha=0.7)
-axes[1].set_xlabel('Year', fontsize=11)
+# Grouped bar chart comparison
+x_pos = np.arange(len(era_order))
+bar_width = 0.25
+axes[1].bar(x_pos - bar_width, structure_by_era['Solo_Artist'], bar_width,
+           label='Solo', color='#E74C3C', edgecolor='black', alpha=0.8)
+axes[1].bar(x_pos, structure_by_era['Duo'], bar_width,
+           label='Duo', color='#F39C12', edgecolor='black', alpha=0.8)
+axes[1].bar(x_pos + bar_width, structure_by_era['Group'], bar_width,
+           label='Group (3+)', color='#27AE60', edgecolor='black', alpha=0.8)
 axes[1].set_ylabel('Percentage', fontsize=11)
-axes[1].set_title('Solo vs Group Artists Over Time', fontsize=12)
+axes[1].set_title('Artist Structure Comparison', fontsize=12)
+axes[1].set_xticks(x_pos)
+axes[1].set_xticklabels(['Pre-Digital', 'Streaming', 'Post-Short-Form'], fontsize=9)
 axes[1].legend()
-axes[1].grid(True, alpha=0.3)
+axes[1].grid(True, alpha=0.3, axis='y')
 
 plt.tight_layout()
 plt.savefig('artist_structure.png', dpi=300, bbox_inches='tight')
-print("saved artist structure plot")
+print("saved artist_structure.png")
 plt.close()
 
-# 3. demographic evolution
-
+# demographics
 print("demographics analysis")
 
 fig, axes = plt.subplots(2, 3, figsize=(16, 10))
-fig.suptitle('RQ3: Racial & Gender Demographics Over Time', fontsize=14, fontweight='bold')
+fig.suptitle('Racial & Gender Demographics Across Eras', fontsize=14, fontweight='bold')
 
 gender_by_era = df.groupby('Era')[['All_Male_Artist', 'All_Female_Artist', 'Mixed_Gender_Artist']].mean() * 100
 gender_by_era = gender_by_era.reindex(era_order)
@@ -244,46 +245,43 @@ axes[1, 0].set_xticklabels(['Pre-Digital', 'Streaming', 'Post-SF'], fontsize=9)
 axes[1, 0].legend(fontsize=8)
 axes[1, 0].grid(True, alpha=0.3, axis='y')
 
-# Time series: Female representation
-yearly_female_artist = df.groupby('Year')['All_Female_Artist'].mean() * 100
-yearly_female_songwriter = df.groupby('Year')['All_Female_Songwriter'].mean() * 100
-yearly_female_producer = df.groupby('Year')['All_Female_Producer'].mean() * 100
+# Decade-by-decade female representation comparison
+decade_data = df.groupby(df['Year'] // 10 * 10).agg({
+    'All_Female_Artist': 'mean',
+    'All_Female_Songwriter': 'mean',
+    'All_Female_Producer': 'mean'
+}) * 100
 
-axes[1, 1].plot(yearly_female_artist.index, yearly_female_artist.values, linewidth=2,
-               color='#E91E63', marker='o', markersize=2, label='Artist')
-axes[1, 1].plot(yearly_female_songwriter.index, yearly_female_songwriter.values, linewidth=2,
-               color='#9C27B0', marker='o', markersize=2, label='Songwriter')
-axes[1, 1].plot(yearly_female_producer.index, yearly_female_producer.values, linewidth=2,
-               color='#673AB7', marker='o', markersize=2, label='Producer')
-axes[1, 1].axvline(2007, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
-axes[1, 1].axvline(2020, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
-axes[1, 1].set_xlabel('Year', fontsize=10)
+axes[1, 1].plot(decade_data.index, decade_data['All_Female_Artist'],
+               marker='o', linewidth=2.5, markersize=8, label='Artist', color='#E91E63')
+axes[1, 1].plot(decade_data.index, decade_data['All_Female_Songwriter'],
+               marker='s', linewidth=2.5, markersize=8, label='Songwriter', color='#9C27B0')
+axes[1, 1].plot(decade_data.index, decade_data['All_Female_Producer'],
+               marker='^', linewidth=2.5, markersize=8, label='Producer', color='#673AB7')
+axes[1, 1].set_xlabel('Decade', fontsize=10)
 axes[1, 1].set_ylabel('Percentage', fontsize=10)
-axes[1, 1].set_title('All-Female Representation Over Time', fontsize=11, fontweight='bold')
+axes[1, 1].set_title('All-Female Representation by Decade', fontsize=11, fontweight='bold')
 axes[1, 1].legend(fontsize=8)
 axes[1, 1].grid(True, alpha=0.3)
 
-# Time series: Black artist representation
-yearly_black_artist = df.groupby('Year')['All_Black_Artist'].mean() * 100
-axes[1, 2].plot(yearly_black_artist.index, yearly_black_artist.values, linewidth=2.5,
-               color='#2ECC71', marker='o', markersize=3)
-axes[1, 2].axvline(2007, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
-axes[1, 2].axvline(2020, color='red', linestyle='--', linewidth=1.5, alpha=0.7)
-axes[1, 2].set_xlabel('Year', fontsize=10)
+# Decade-by-decade black representation
+decade_black = df.groupby(df['Year'] // 10 * 10)['All_Black_Artist'].mean() * 100
+axes[1, 2].bar(decade_black.index, decade_black.values, color='#2ECC71', edgecolor='black', alpha=0.8, width=8)
+axes[1, 2].set_xlabel('Decade', fontsize=10)
 axes[1, 2].set_ylabel('Percentage', fontsize=10)
-axes[1, 2].set_title('All-Black Artist Representation Over Time', fontsize=11, fontweight='bold')
-axes[1, 2].grid(True, alpha=0.3)
+axes[1, 2].set_title('All-Black Artist Representation by Decade', fontsize=11, fontweight='bold')
+axes[1, 2].grid(True, alpha=0.3, axis='y')
 
 plt.tight_layout()
 plt.savefig('demographics.png', dpi=300, bbox_inches='tight')
-print("saved demographics plot")
+print("✓ Saved: demographics.png")
 plt.close()
 
-# 4. creative control
-print("creative control analysis")
+# creative control
+print("creative Control analysis")
 
 fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-fig.suptitle('RQ4: Artist Creative Control Across Eras', fontsize=14, fontweight='bold')
+fig.suptitle('Artist Creative Control Across Eras', fontsize=14, fontweight='bold')
 
 # Artist as Songwriter
 songwriter_data = df.groupby('Era')[['Artist is a Songwriter', 'Artist is Only Songwriter']].mean() * 100
@@ -331,8 +329,7 @@ axes[1].text(0.02, 0.98, f'χ² test: p={p_val:.4f}',
 
 plt.tight_layout()
 plt.savefig('creative_control.png', dpi=300, bbox_inches='tight')
-print("saved creative control plot")
+print("creative_control.png")
 plt.close()
-
 
 print("success")
